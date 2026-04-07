@@ -34,6 +34,18 @@ async function request(method, url, body) {
   return { status: res.status, body: json };
 }
 
+// Helper: raw HTTP request returning { status, text } — safe for empty bodies (e.g. 204)
+async function rawRequest(method, url, body) {
+  const opts = { method };
+  if (body !== undefined) {
+    opts.headers = { "Content-Type": "application/json" };
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  return { status: res.status, text };
+}
+
 describe("PATCH /todos/:id", () => {
   beforeEach(() => resetStore());
 
@@ -91,5 +103,58 @@ describe("PATCH /todos/:id", () => {
 
       assert.strictEqual(todoA.done, true);
       assert.strictEqual(todoB.done, false);
+    }));
+});
+
+describe("DELETE /todos/:id", () => {
+  beforeEach(() => resetStore());
+
+  it("removes a todo and returns 204", () =>
+    withServer(async (base) => {
+      const created = await request("POST", `${base}/todos`, { title: "Delete me" });
+      assert.strictEqual(created.status, 201);
+      const id = created.body.id;
+
+      const del = await rawRequest("DELETE", `${base}/todos/${id}`);
+      assert.strictEqual(del.status, 204);
+      assert.strictEqual(del.text, "");
+
+      // Verify the todo is gone
+      const list = await request("GET", `${base}/todos`);
+      assert.strictEqual(list.status, 200);
+      assert.ok(!list.body.find((t) => t.id === id));
+    }));
+
+  it("returns 404 for non-existent id", () =>
+    withServer(async (base) => {
+      const res = await request("DELETE", `${base}/todos/9999`);
+      assert.strictEqual(res.status, 404);
+      assert.ok(res.body.error);
+    }));
+
+  it("returns 404 for non-numeric id", () =>
+    withServer(async (base) => {
+      const res = await request("DELETE", `${base}/todos/abc`);
+      assert.strictEqual(res.status, 404);
+      assert.ok(res.body.error);
+    }));
+
+  it("does not remove other todos", () =>
+    withServer(async (base) => {
+      const a = await request("POST", `${base}/todos`, { title: "Keep me" });
+      const b = await request("POST", `${base}/todos`, { title: "Delete me" });
+
+      await rawRequest("DELETE", `${base}/todos/${b.body.id}`);
+
+      const list = await request("GET", `${base}/todos`);
+      assert.strictEqual(list.body.length, 1);
+      assert.strictEqual(list.body[0].id, a.body.id);
+    }));
+
+  it("handles deleting from an empty list gracefully", () =>
+    withServer(async (base) => {
+      const res = await request("DELETE", `${base}/todos/1`);
+      assert.strictEqual(res.status, 404);
+      assert.ok(res.body.error);
     }));
 });

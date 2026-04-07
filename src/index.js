@@ -36,6 +36,19 @@ app.patch("/todos/:id", (req, res) => {
   res.json(todo);
 });
 
+app.delete("/todos/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(404).json({ error: "todo not found" });
+  }
+  const index = todos.findIndex((t) => t.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: "todo not found" });
+  }
+  todos.splice(index, 1);
+  res.status(204).send();
+});
+
 // Utility to reset in-memory store between tests
 function resetStore() {
   todos.length = 0;
