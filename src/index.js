@@ -20,4 +20,30 @@ app.post("/todos", (req, res) => {
   res.status(201).json(todo);
 });
 
-app.listen(PORT, () => console.log(`Listening on :${PORT}`));
+app.patch("/todos/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: "id must be a number" });
+  }
+  const todo = todos.find((t) => t.id === id);
+  if (!todo) {
+    return res.status(404).json({ error: "todo not found" });
+  }
+  if (typeof todo.done !== "boolean") {
+    todo.done = false;
+  }
+  todo.done = !todo.done;
+  res.json(todo);
+});
+
+// Utility to reset in-memory store between tests
+function resetStore() {
+  todos.length = 0;
+  nextId = 1;
+}
+
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Listening on :${PORT}`));
+}
+
+module.exports = { app, todos, resetStore };
